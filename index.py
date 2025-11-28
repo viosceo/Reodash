@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify
 import requests
-from services.get import Metro, Akasya
 import socket
 
 app = Flask(__name__)
