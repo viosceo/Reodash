@@ -8,18 +8,16 @@ import shutil
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey123'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 USER_DIR = "server"
 PROJECTS_DIR = "projects"
 
-# Kullanıcı session yönetimi
 @app.before_request
 def require_login():
     if request.endpoint not in ['login', 'do_login', 'register', 'do_register'] and 'username' not in session:
         return redirect(url_for('login'))
 
-# Login işlemleri
 @app.route('/')
 def login():
     return render_template('login.html')
@@ -35,10 +33,8 @@ def do_login():
             data = f.read()
             if f"password: {password}" in data:
                 session['username'] = username
-                # Kullanıcı dizinini oluştur
                 user_project_dir = os.path.join(PROJECTS_DIR, username)
                 os.makedirs(user_project_dir, exist_ok=True)
-                
                 flash("Başarıyla giriş yapıldı!", "success")
                 return redirect(url_for('panel'))
     
@@ -63,7 +59,6 @@ def do_register():
     with open(user_file, "w") as f:
         f.write(f"email: {email}\nusername: {username}\npassword: {password}")
     
-    # Kullanıcı için proje dizinini oluştur
     user_project_dir = os.path.join(PROJECTS_DIR, username)
     os.makedirs(user_project_dir, exist_ok=True)
     
@@ -76,19 +71,16 @@ def logout():
     flash("Çıkış yapıldı!", "info")
     return redirect(url_for('login'))
 
-# Panel ana sayfa
 @app.route('/panel')
 def panel():
     username = session.get('username')
     user_projects_dir = os.path.join(PROJECTS_DIR, username)
     
-    # Projeleri listele
     projects = []
     if os.path.exists(user_projects_dir):
         for project in os.listdir(user_projects_dir):
             project_path = os.path.join(user_projects_dir, project)
             if os.path.isdir(project_path):
-                # Proje dosyalarını listele
                 files = []
                 for file in os.listdir(project_path):
                     if file.endswith('.py'):
@@ -101,11 +93,8 @@ def panel():
                     'created': datetime.fromtimestamp(created_time).strftime('%d.%m.%Y %H:%M')
                 })
     
-    return render_template('panel.html', 
-                         username=username, 
-                         projects=projects)
+    return render_template('panel.html', username=username, projects=projects)
 
-# Python dosyası yükleme
 @app.route('/upload_python', methods=['POST'])
 def upload_python():
     username = session.get('username')
@@ -122,7 +111,6 @@ def upload_python():
     files = request.files.getlist('python_files')
     user_project_dir = os.path.join(PROJECTS_DIR, username, project_name)
     
-    # Proje dizinini oluştur
     os.makedirs(user_project_dir, exist_ok=True)
     
     uploaded_files = []
@@ -139,7 +127,6 @@ def upload_python():
     
     return redirect(url_for('panel'))
 
-# Dosya içeriğini okuma
 @app.route('/get_file_content/<project_name>/<filename>')
 def get_file_content(project_name, filename):
     username = session.get('username')
@@ -152,7 +139,6 @@ def get_file_content(project_name, filename):
     else:
         return jsonify({'success': False, 'error': 'Dosya bulunamadı'})
 
-# Dosya kaydetme
 @app.route('/save_file/<project_name>/<filename>', methods=['POST'])
 def save_file(project_name, filename):
     username = session.get('username')
@@ -167,20 +153,17 @@ def save_file(project_name, filename):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# Proje çalıştırma
 @app.route('/run_project/<project_name>')
 def run_project(project_name):
     username = session.get('username')
     user_project_dir = os.path.join(PROJECTS_DIR, username, project_name)
     
-    # Python dosyalarını bul
     python_files = [f for f in os.listdir(user_project_dir) if f.endswith('.py')]
     
     if not python_files:
         flash("❌ Çalıştırılacak Python dosyası bulunamadı!", "error")
         return redirect(url_for('panel'))
     
-    # Ana dosyayı bul
     main_file = None
     for preferred in ['main.py', 'app.py', 'bot.py', 'run.py']:
         if preferred in python_files:
@@ -191,7 +174,6 @@ def run_project(project_name):
         main_file = python_files[0]
     
     try:
-        # Prosesi başlat
         process = subprocess.Popen(
             ['python', main_file],
             cwd=user_project_dir,
@@ -200,7 +182,6 @@ def run_project(project_name):
             text=True
         )
         
-        # Basit çıktı yakalama
         def get_output():
             output, error = process.communicate()
             if output:
@@ -209,7 +190,6 @@ def run_project(project_name):
                 flash(f"⚠️ {project_name} hatası: {error}", "warning")
         
         threading.Thread(target=get_output).start()
-        
         flash(f"✅ {project_name} başlatıldı!", "success")
         
     except Exception as e:
@@ -217,7 +197,6 @@ def run_project(project_name):
     
     return redirect(url_for('panel'))
 
-# Proje silme
 @app.route('/delete_project/<project_name>')
 def delete_project(project_name):
     username = session.get('username')
@@ -238,4 +217,8 @@ if __name__ == '__main__':
         os.makedirs(PROJECTS_DIR)
     
     print("🚀 Vision Bot Panel Başlatılıyor...")
+    print("📡 Routes:")
+    for rule in app.url_map.iter_rules():
+        print(f"   {rule.rule} -> {rule.endpoint}")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
